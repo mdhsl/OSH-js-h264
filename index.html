@@ -1,0 +1,73 @@
+<!DOCTYPE HTML>
+<html>
+  <head>
+    <meta charset="utf-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=Edge,chrome=1">
+    <title>Test x264 Video decoding</title>
+  </head>
+    <body>
+       
+      <h2>This is a test video for x264 decoding</h2>
+       
+      <script type="text/javascript">
+        function load() {
+            var url = document.getElementById('url').value;
+            loadStream(url);
+        }
+      
+      function loadStream(url) {
+      
+        var mediaSource = new MediaSource();
+        var buffer;
+        var queue = [];
+
+        var video = document.querySelector('video');
+        video.src = window.URL.createObjectURL(mediaSource);
+
+        mediaSource.addEventListener('sourceopen', function(e) {
+          mediaSource.duration = 10000000;
+          video.play();
+
+          buffer = mediaSource.addSourceBuffer('video/mp4; codecs="avc1.64001E"');
+
+          buffer.addEventListener('updatestart', function(e) { /*console.log('updatestart: ' + mediaSource.readyState); */});
+          buffer.addEventListener('update', function(e) { /*console.log('update: ' + mediaSource.readyState); */});
+          buffer.addEventListener('updateend', function(e) { /*console.log('updateend: ' + mediaSource.readyState); */});
+          buffer.addEventListener('error', function(e) { /*console.log('error: ' + mediaSource.readyState); */});
+          buffer.addEventListener('abort', function(e) { /*console.log('abort: ' + mediaSource.readyState); */});
+
+          buffer.addEventListener('update', function() { // Note: Have tried 'updateend'
+            while (queue.length > 0 && !buffer.updating) {
+              buffer.appendBuffer(queue.shift());
+            }
+          });
+        }, false);
+
+        mediaSource.addEventListener('sourceopen', function(e) { /*console.log('sourceopen: ' + mediaSource.readyState); */});
+        mediaSource.addEventListener('sourceended', function(e) { /*console.log('sourceended: ' + mediaSource.readyState); */});
+        mediaSource.addEventListener('sourceclose', function(e) { /*console.log('sourceclose: ' + mediaSource.readyState); */});
+        mediaSource.addEventListener('error', function(e) { console.log('error: ' + mediaSource.readyState); });
+
+        var ws = new WebSocket(url);
+        ws.binaryType = 'arraybuffer';
+        ws.onmessage = function(event) {
+            var data = new Uint8Array(event.data);
+            if (buffer.updating || queue.length > 0) {
+              queue.push(data);
+            } else {
+              buffer.appendBuffer(data);
+            }
+        }
+      }
+      
+      </script>
+        <div class="container-vertical">
+          <label for="url">WebSocket Url:</label> 
+          <input type="text" name="url" id="url"  size="50"/>
+          <button type="button" onclick="load()">Load</button> 
+          <div id="timeStamp">TimeStamp:</div>
+          <video id="video" width="640" height="480"></video>
+        </div>
+      
+    </body>
+</html>
