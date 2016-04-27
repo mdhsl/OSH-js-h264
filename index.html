@@ -51,11 +51,11 @@
         var ws = new WebSocket(url);
         ws.binaryType = 'arraybuffer';
         ws.onmessage = function(event) {
-            var data = new Uint8Array(event.data);
+            //var data = new Uint8Array(event.data);
             if (buffer.updating || queue.length > 0) {
-              queue.push(data);
+              queue.push(event.data);
             } else {
-              buffer.appendBuffer(data);
+              buffer.appendBuffer(event.data);
             }
         }
       }
@@ -66,7 +66,7 @@
           <input type="text" name="url" id="url"  size="50"/>
           <button type="button" onclick="load()">Load</button> 
           <div id="timeStamp">TimeStamp:</div>
-          <video id="video" width="640" height="480"></video>
+          <video id="video" width="640" height="480" controls autoplay></video>
         </div>
       
     </body>
