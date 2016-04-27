@@ -1,0 +1,179 @@
+
+<!DOCTYPE HTML>
+<html>
+  <head>
+    <meta charset="utf-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=Edge,chrome=1">
+    <title>Test x264 Video decoding</title>
+    <link type="text/css" href="screen.css" rel="stylesheet" />
+    <link type="text/css" href="jquery-ui.css" rel="stylesheet" />
+    <style>
+     .container div {
+        display: inline-block;
+      }
+      .container-vertical div {
+        display: block;
+        margin-top:10px;
+      }
+    </style>
+  </head>
+    <script type="text/javascript" src="Decoder.js"></script>
+    <script type="text/javascript" src="YUVCanvas.js"></script>
+    <script type="text/javascript" src="Player.js"></script>
+    <script type="text/javascript" src="stream.js"></script>
+    <script type="text/javascript" src="mp4.js"></script>
+    <script type="text/javascript" src="mp4box.all.js"></script>  
+      
+    <script type="text/javascript" src="osh-h264-raw-decoder.js"></script>  
+    <script type="text/javascript" src="osh-h264-mp4-decoder.js"></script>  
+    
+    <body onload="load()">
+       This is a test video for x264 decoding
+       
+      <script type="text/javascript">
+        function load() {
+          
+          //------------- STREAM EXAMPLE -------------//
+          loadStream();
+          //------------- WEBSOCKET EXAMPLE -------------//
+          //loadFromWebSocket();          
+          
+          function loadFromWebSocket() {
+            
+            //gets the timeStamp div
+            var timeStampDiv = document.getElementById("timeStamp");
+            var fps = 0;
+            
+            //creates the websocket
+            var ws = new WebSocket("ws://<YOUR URL HERE>");
+            ws.binaryType = 'arraybuffer';
+            
+            var oshRawDecoder = new OshRawDecoder({
+                div : document.getElementById("broadway-ws")
+            });
+            
+            /*var oshRawDecoder = new OshMp4Decoder({
+                div : document.getElementById("broadway-ws")
+             });*/
+            
+            oshRawDecoder.onUpdateStats = function(decodedFps) {
+               fps = decodedFps.toFixed(2);  
+            }
+            
+            //on receiving data. The buffer has to be a COMPLETE NAL UNIT, otherwise the buffer could not be decoded
+            ws.onmessage = function(event) {
+               var buffer = new Uint8Array(event.data);
+               console.log(buffer);
+              //gets the timeStamp
+              var timeStamp = new DataView(event.data).getFloat64(0, false); // read double time stamp as big endian
+              
+              //update div content to display timeStamp
+              timeStampDiv.innerHTML = "(WebSocket) TimeStamp: "+new Date(timeStamp*1000).toISOString();
+              timeStampDiv.innerHTML += " , FPS: "+fps;  
+              //removes timeStamp from the NAL unit
+              var len = event.data.byteLength;
+              var buffer = new Uint8Array(event.data, 12, len-12); // H264 NAL unit starts at offset 12 after 8-bytes time stamp and 4-bytes frame length
+              
+              oshRawDecoder.readAll(buffer);
+            };
+          }
+          
+          function loadStream() {
+               //creates the player/decoder
+            var avc = new Player({
+              useWorker: false,
+              reuseMemory: true,
+              webgl: "auto",
+              size: {
+                width: 640,
+                height: 368
+              }
+            });
+            
+            //gets canvas from the player. the player creates automaticaly a canvas
+            var canvas = avc.canvas
+            var domNode = document.getElementById("broadway-ws");
+            domNode.appendChild(canvas);
+            
+            //after decoding, the frame is rendered into the canvas
+            avc.onPictureDecoded = function(yuvBuffer, width, height) {
+                avc.renderFrame({
+                    canvasObj: avc.canvasObj,
+                    data: yuvBuffer,
+                    width: width,
+                    height: height
+                  });
+            };
+            
+           //opens a stream 
+           //var stream = new Stream("http://mbebenita.github.io/Broadway/tree.mp4");
+           var stream = new Stream("tree.mp4");
+              stream.readAll(null, function (buffer) {
+                console.info("MP4Player::readAll()");
+                
+                //creates the MP4 reader
+                var reader = new MP4Reader(new Bytestream(buffer));
+                
+                //reads the content
+                reader.read();
+                
+                //gets the track chunk
+                var video = reader.tracks[1];
+                var size = new Size(video.trak.tkhd.width, video.trak.tkhd.height);
+                console.info("MP4Player::readAll(), length: " +  reader.stream.length);
+                var avcC = reader.tracks[1].trak.mdia.minf.stbl.stsd.avc1.avcC;
+                
+                //gets SPS & PPS
+                var sps = avcC.sps[0];
+                var pps = avcC.pps[0];
+            
+                console.log(new Uint8Array(sps));
+                console.log(new Uint8Array(pps));
+                //decodes Sequence & Picture Parameter Sets 
+                avc.decode(sps);
+                avc.decode(pps);
+                
+                //gets complete sample NAL unit
+                var pic = 0;
+                //a timeout is used to be sure to get a complete NAL unit before decoding
+                setTimeout(function foo() {
+                  //decodes every NAL unit 
+                  video.getSampleNALUnits(pic).forEach(function (nal) {
+                    
+                    //simulates slicing
+                    var len = nal.byteLength;
+                    var buffer = new Uint8Array(nal.slice(0,len));
+                    
+                    //decode the simulate slicing
+                    avc.decode(buffer);
+                  }.bind(this));
+                  pic ++;
+                  if (pic < 3000) {
+                    setTimeout(foo.bind(this), 1);
+                  };
+                }.bind(this), 1);
+            });
+          }
+      }
+      
+      function byteToHexString(uint8arr) {
+          if (!uint8arr) {
+            return '';
+          }
+          
+          var hexStr = '';
+          for (var i = 0; i < uint8arr.length; i++) {
+            var hex = (uint8arr[i] & 0xff).toString(16);
+            hex = (hex.length === 1) ? '0' + hex : hex;
+            hexStr += hex+ ' ';
+          }
+          
+          return hexStr.toUpperCase();
+        }    
+      </script>
+        <div class="container-vertical">
+          <div id="timeStamp">TimeStamp:</div>
+          <div class="broadway" id="broadway-ws"  style="float:left;" workers="false" render="true" webgl="true"></div>
+        </div>
+    </body>
+</html>
