@@ -66,7 +66,7 @@ OSH.TimeStampParser.VideoMP4.prototype.parse = function(data) {
         return this.absoluteTime;
     } else {
         // for debug only --> MVDH has already been calculated 
-        // got the first box => MVDH
+        // got the first box
         var infos = readMP4Info(data);
         console.log("PTS : "+infos.pts);
         console.log("timeScale : "+infos.timeScale);
@@ -74,7 +74,7 @@ OSH.TimeStampParser.VideoMP4.prototype.parse = function(data) {
         console.log("rate : "+infos.rate);
         // end debug
         console.log("FrameRate: "+this.pts+" --> "+infos.pts);
-        return (infos.pts*this.timeScale)+this.absoluteTime;
+        return ((infos.pts*1000)*this.timeScale)+this.absoluteTime;
     }
 };
 
@@ -108,7 +108,7 @@ function readMP4Info(data) {
     pos += 4;
     
     //rate  // 32 bits / 65536
-    infos.rate = (new DataView(data,pos,pos+4).getUint32(0)) / 65536;
+    infos.rate = (new DataView(data,pos,pos+4).getUint32(0));
     
     return infos;
 }
