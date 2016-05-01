@@ -4,6 +4,20 @@
     <meta charset="utf-8">
     <meta http-equiv="X-UA-Compatible" content="IE=Edge,chrome=1">
     <title>Test x264 Video decoding</title>
+    
+    <!-- Hashtable -->
+    <script type="text/javascript" src="js/common/jhashtable.js"></script>
+    
+    <!-- OSH Core -->
+    <script type="text/javascript" src="js/osh/osh-core.js"></script>
+    <!-- OSH buffer sync lib -->
+    <script type="text/javascript" src="js/osh/osh-sync-buffer.js"></script>
+    <!-- OSH controller lib -->
+    <script type="text/javascript" src="js/osh/osh-controller.js"></script>
+    <!-- OSH Video component parser -->
+    <script type="text/javascript" src="js/osh/osh-video.js"></script>
+    <!-- OSH Time stamp utility parser -->
+<script type="text/javascript" src="js/osh/osh-timestamp-parser.js"></script>
   </head>
     <body>
        
@@ -14,60 +28,41 @@
             var url = document.getElementById('url').value;
             loadStream(url);
         }
-      
-      function loadStream(url) {
-      
-        var mediaSource = new MediaSource();
-        var buffer;
-        var queue = [];
-
-        var video = document.querySelector('video');
-        video.src = window.URL.createObjectURL(mediaSource);
-
-        mediaSource.addEventListener('sourceopen', function(e) {
-          mediaSource.duration = 10000000;
-          video.play();
-
-          buffer = mediaSource.addSourceBuffer('video/mp4; codecs="avc1.64001E"');
-
-          buffer.addEventListener('updatestart', function(e) { /*console.log('updatestart: ' + mediaSource.readyState); */});
-          buffer.addEventListener('update', function(e) { /*console.log('update: ' + mediaSource.readyState); */});
-          buffer.addEventListener('updateend', function(e) { /*console.log('updateend: ' + mediaSource.readyState); */});
-          buffer.addEventListener('error', function(e) { /*console.log('error: ' + mediaSource.readyState); */});
-          buffer.addEventListener('abort', function(e) { /*console.log('abort: ' + mediaSource.readyState); */});
-
-          buffer.addEventListener('update', function() { // Note: Have tried 'updateend'
-            while (queue.length > 0 && !buffer.updating) {
-              buffer.appendBuffer(queue.shift());
-            }
+        function loadStream(url) {
+          // creates the OSH video component
+          var oshVideo = new OSH.Video({
+              width:"640px",
+              height:"480px",
+              format:"mp4",
+              div:"container-video"
           });
-        }, false);
-
-        mediaSource.addEventListener('sourceopen', function(e) { /*console.log('sourceopen: ' + mediaSource.readyState); */});
-        mediaSource.addEventListener('sourceended', function(e) { /*console.log('sourceended: ' + mediaSource.readyState); */});
-        mediaSource.addEventListener('sourceclose', function(e) { /*console.log('sourceclose: ' + mediaSource.readyState); */});
-        mediaSource.addEventListener('error', function(e) { console.log('error: ' + mediaSource.readyState); });
-
-        var ws = new WebSocket(url);
-        ws.binaryType = 'arraybuffer';
-        ws.onmessage = function(event) {
-            //var data = new Uint8Array(event.data);
-            if (buffer.updating || queue.length > 0) {
-              queue.push(event.data);
-            } else {
-              buffer.appendBuffer(event.data);
-            }
-        }
-      }
-      
+          
+          var controller = OSH.Controller.getSingleton();
+         
+          // setup the controller. The synchronizedTime is turn to off because the data are the same but at different time
+          controller.setOptions({
+               bufferingTime: 4 * 1000, // 4 seconds
+               synchronizedTime: true // disable synchronization for this set of data
+          });
+    
+          //for MP4, we need a parser for each different stream
+          var mp4TimeStampParser = new OSH.TimeStampParser.VideoMP4();
+          var videoSourceId = controller.addDataSource(this,url,"video",mp4TimeStampParser.parse.bind(mp4TimeStampParser),oshVideo.onDataCallback.bind(oshVideo));
+          
+          //add observer to update video timestamp field
+          controller.addDataSourceObserver(function (infos) {
+              if(infos.name == videoSourceId) {
+                document.getElementById("timestamp").innerHTML = "Time: "+(new Date(infos.timeStamp).toISOString());
+              }
+          });
+        } // end load
       </script>
         <div class="container-vertical">
           <label for="url">WebSocket Url:</label> 
           <input type="text" name="url" id="url"  size="50"/>
-          <button type="button" onclick="load()">Load</button> 
-          <div id="timeStamp">TimeStamp:</div>
-          <video id="video" width="640" height="480" controls></video>
+          <button type="button" onclick="load()">Load</button>
+          <div id="timestamp">Time: </div>
+          <div id="container-video"></div>
         </div>
-      
     </body>
 </html>
