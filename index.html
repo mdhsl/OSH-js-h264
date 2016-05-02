@@ -5,19 +5,9 @@
     <meta http-equiv="X-UA-Compatible" content="IE=Edge,chrome=1">
     <title>Test x264 Video decoding</title>
     
-    <!-- Hashtable -->
-    <script type="text/javascript" src="js/common/jhashtable.js"></script>
+    <!-- OSH all-in-one -->
+    <script type="text/javascript" src= "js/osh-all.js"></script>
     
-    <!-- OSH Core -->
-    <script type="text/javascript" src="js/osh/osh-core.js"></script>
-    <!-- OSH buffer sync lib -->
-    <script type="text/javascript" src="js/osh/osh-sync-buffer.js"></script>
-    <!-- OSH controller lib -->
-    <script type="text/javascript" src="js/osh/osh-controller.js"></script>
-    <!-- OSH Video component parser -->
-    <script type="text/javascript" src="js/osh/osh-video.js"></script>
-    <!-- OSH Time stamp utility parser -->
-<script type="text/javascript" src="js/osh/osh-timestamp-parser.js"></script>
   </head>
     <body>
        
@@ -33,25 +23,29 @@
           var oshVideo = new OSH.Video({
               width:"640px",
               height:"480px",
-              format:"mp4",
-              div:"container-video"
+              format:"mp4", // switch between 'mp4' or 'mpeg'
+              div:"container-video" // the container to attach the video container
           });
           
           var controller = OSH.Controller.getSingleton();
          
-          // setup the controller. The synchronizedTime is turn to off because the data are the same but at different time
+          // setup the controller. 
           controller.setOptions({
-               bufferingTime: 4 * 1000, // 4 seconds
-               synchronizedTime: true // disable synchronization for this set of data
+               bufferingTime: 3 * 1000, // 4 seconds
+               synchronizedTime: true // synchronize data
           });
     
           //for MP4, we need a parser for each different stream
-          var mp4TimeStampParser = new OSH.TimeStampParser.VideoMP4();
-          var videoSourceId = controller.addDataSource(this,url,"video",mp4TimeStampParser.parse.bind(mp4TimeStampParser),oshVideo.onDataCallback.bind(oshVideo));
+          var videoSourceId = controller.addDataSource(this,
+                    url, // source url
+                    "video", //source name
+                    oshVideo.parseTimeStamp, //timestamp parser functi on
+                    oshVideo.onDataCallback); //data callback function
           
           //add observer to update video timestamp field
           controller.addDataSourceObserver(function (infos) {
-              if(infos.name == videoSourceId) {
+              console.log(infos);
+              if(infos.id == videoSourceId) {
                 document.getElementById("timestamp").innerHTML = "Time: "+(new Date(infos.timeStamp).toISOString());
               }
           });
