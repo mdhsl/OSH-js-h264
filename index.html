@@ -39,8 +39,8 @@
           var videoSourceId = controller.addDataSource(this,
                     url, // source url
                     "video", //source name
-                    oshVideo.parseTimeStamp, //timestamp parser functi on
-                    oshVideo.onDataCallback); //data callback function
+                    oshVideo.parseTimeStamp.bind(oshVideo), //timestamp parser functi on
+                    oshVideo.onDataCallback.bind(oshVideo)); //data callback function
           
           //add observer to update video timestamp field
           controller.addDataSourceObserver(function (infos) {
